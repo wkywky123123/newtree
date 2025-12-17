@@ -73,8 +73,7 @@ const LoadingScreen = ({
         <div className="animate-fade-in">
            <p className="text-gray-300 mb-12 max-w-md leading-relaxed">
             资源加载完成。<br/>
-            挥手成林，捏合取景。<br/>
-            点击下方按钮开启体验。
+            {landmarker ? '挥手成林，捏合取景。' : '使用鼠标移动和点击控制圣诞树。'}
           </p>
           <button 
             onClick={onStart}
@@ -117,14 +116,35 @@ function App() {
   useEffect(() => {
     const initMediaPipe = async () => {
       try {
-        // 使用在中国可访问的CDN源
-        const vision = await FilesetResolver.forVisionTasks(
-          "https://fastly.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm"
-        );
-        
-        // 使用在中国可访问的CDN源 (使用fastly CDN)
-        const modelPath = "https://fastly.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm/hand_landmarker.task";
-        
+        // 使用 npm 包提供的 WASM 文件
+        const vision = await FilesetResolver.forVisionTasks();
+
+        // 尝试多个CDN源
+        const modelUrls = [
+          "https://unpkg.com/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm/hand_landmarker.task",
+          "https://fastly.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm/hand_landmarker.task",
+          "/mediapipe/hand_landmarker.task" // 本地文件（如果构建时下载成功）
+        ];
+
+        let modelPath = null;
+        for (const url of modelUrls) {
+          try {
+            // 检查URL是否可访问
+            const response = await fetch(url, { method: 'HEAD' });
+            if (response.ok) {
+              modelPath = url;
+              console.log(`使用模型源: ${url}`);
+              break;
+            }
+          } catch {
+            continue;
+          }
+        }
+
+        if (!modelPath) {
+          throw new Error('所有模型源都不可访问');
+        }
+
         const lm = await HandLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: modelPath,
@@ -133,9 +153,12 @@ function App() {
           runningMode: "VIDEO",
           numHands: 1
         });
+
         setLandmarker(lm);
+        console.log('MediaPipe 初始化成功');
       } catch (error) {
-        console.error("Failed to load MediaPipe:", error);
+        console.warn("MediaPipe 初始化失败，将使用鼠标控制:", error);
+        // 不设置landmarker，让应用继续运行但使用鼠标控制
       }
     };
     initMediaPipe();
@@ -143,23 +166,32 @@ function App() {
 
   // Calculate Total Load Progress
   // AI Load = 50%, Texture Load = 50%
-  const mlProgress = landmarker ? 50 : 0; // Simple binary for ML part as we can't track download easily
+  const mlProgress = landmarker ? 50 : (landmarker === null ? 50 : 0); // 如果landmarker为null（失败），也算作50%
   // However, to make it feel real-time, we can pretend ML is loading up to 45% with a timer if it's not done
   const [simulatedMlProgress, setSimulatedMlProgress] = useState(0);
 
   useEffect(() => {
-    if (!landmarker) {
-      const interval = setInterval(() => {
-        setSimulatedMlProgress(prev => Math.min(prev + 1, 45));
-      }, 100);
-      return () => clearInterval(interval);
-    } else {
-      setSimulatedMlProgress(50);
-    }
+    if (landmarker !== undefined) return; // 已完成（成功或失败）
+
+    const interval = setInterval(() => {
+      setSimulatedMlProgress(prev => Math.min(prev + 1, 45));
+    }, 100);
+    return () => clearInterval(interval);
   }, [landmarker]);
 
+  // 5秒后强制完成ML加载（无论成功失败）
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (landmarker === undefined) {
+        console.log('MediaPipe 加载超时，跳过');
+        setLandmarker(null); // 标记为失败但已尝试
+      }
+    }, 5000);
+    return () => clearTimeout(timeout);
+  }, []);
+
   const totalProgress = simulatedMlProgress + (textureProgress * 0.5);
-  const isReady = !!landmarker && textureProgress >= 100;
+  const isReady = textureProgress >= 100; // 只要纹理加载完成就准备好
 
   // Check screen size
   useEffect(() => {
@@ -272,8 +304,8 @@ function App() {
         onPhotoSelect={handlePhotoSelect}
       />
 
-      {/* Hand Tracking Layer - Active when stream & model are ready */}
-      {cameraStream && landmarker && (
+      {/* Hand Tracking Layer - Active when stream is ready */}
+      {cameraStream && (
         <HandController 
           cameraStream={cameraStream}
           landmarker={landmarker}
@@ -303,25 +335,44 @@ function App() {
               className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
             >
               <h3 className="text-amber-400 font-bold uppercase text-xs tracking-widest flex items-center gap-2">
-                手势指南
+                {landmarker ? '手势指南' : '鼠标控制'}
                 <span className={`text-[10px] text-gray-500 transition-transform duration-300 ${isInstructionsOpen ? 'rotate-180' : ''}`}>▼</span>
               </h3>
             </div>
             
             <div className={`transition-all duration-300 ease-in-out ${isInstructionsOpen ? 'max-h-64 opacity-100' : 'max-h-0 opacity-0'}`}>
               <div className="px-6 pb-6 pt-0 space-y-3 text-sm">
-                <div className={`flex items-center gap-3 ${appState === AppState.TREE ? 'text-green-400 font-bold' : 'text-gray-400'}`}>
-                  <div className="w-6 h-6 rounded-full border border-current flex items-center justify-center">✊</div>
-                  <span><span className="text-white">握拳:</span> 聚合圣诞树</span>
-                </div>
-                <div className={`flex items-center gap-3 ${appState === AppState.SCATTERED ? 'text-green-400 font-bold' : 'text-gray-400'}`}>
-                  <div className="w-6 h-6 rounded-full border border-current flex items-center justify-center">🖐</div>
-                  <span><span className="text-white">张开五指:</span> 打散粒子 / 旋转视角</span>
-                </div>
-                <div className={`flex items-center gap-3 ${appState === AppState.PHOTO_VIEW ? 'text-green-400 font-bold' : 'text-gray-400'}`}>
-                  <div className="w-6 h-6 rounded-full border border-current flex items-center justify-center">👌</div>
-                  <span><span className="text-white">捏合:</span> 抓取并放大照片</span>
-                </div>
+                {landmarker ? (
+                  <>
+                    <div className={`flex items-center gap-3 ${appState === AppState.TREE ? 'text-green-400 font-bold' : 'text-gray-400'}`}>
+                      <div className="w-6 h-6 rounded-full border border-current flex items-center justify-center">✊</div>
+                      <span><span className="text-white">握拳:</span> 聚合圣诞树</span>
+                    </div>
+                    <div className={`flex items-center gap-3 ${appState === AppState.SCATTERED ? 'text-green-400 font-bold' : 'text-gray-400'}`}>
+                      <div className="w-6 h-6 rounded-full border border-current flex items-center justify-center">🖐</div>
+                      <span><span className="text-white">张开五指:</span> 打散粒子 / 旋转视角</span>
+                    </div>
+                    <div className={`flex items-center gap-3 ${appState === AppState.PHOTO_VIEW ? 'text-green-400 font-bold' : 'text-gray-400'}`}>
+                      <div className="w-6 h-6 rounded-full border border-current flex items-center justify-center">👌</div>
+                      <span><span className="text-white">捏合:</span> 抓取并放大照片</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3 text-gray-300">
+                      <div className="w-6 h-6 rounded-full border border-current flex items-center justify-center">🖱️</div>
+                      <span><span className="text-white">移动鼠标:</span> 控制视角</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-gray-300">
+                      <div className="w-6 h-6 rounded-full border border-current flex items-center justify-center">👆</div>
+                      <span><span className="text-white">点击鼠标:</span> 抓取/释放照片</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-gray-300">
+                      <div className="w-6 h-6 rounded-full border border-current flex items-center justify-center">🔄</div>
+                      <span><span className="text-white">滚轮:</span> 缩放视角</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

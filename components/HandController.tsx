@@ -6,21 +6,21 @@ interface HandControllerProps {
   onStateChange: (state: AppState) => void;
   onHandMove: (x: number, y: number, z: number) => void;
   onGrab: (isGrabbing: boolean) => void;
-  cameraStream: MediaStream;
-  landmarker: HandLandmarker; // Preloaded instance
+  cameraStream?: MediaStream;
+  landmarker?: HandLandmarker; // Optional now
 }
 
-export const HandController: React.FC<HandControllerProps> = ({ 
-  onStateChange, 
-  onHandMove, 
-  onGrab, 
+export const HandController: React.FC<HandControllerProps> = ({
+  onStateChange,
+  onHandMove,
+  onGrab,
   cameraStream,
   landmarker
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isMirrored, setIsMirrored] = useState(true);
-  
+
   // Dragging State
   const [position, setPosition] = useState({ x: window.innerWidth - 280, y: 16 });
   const [isDragging, setIsDragging] = useState(false);
@@ -31,7 +31,7 @@ export const HandController: React.FC<HandControllerProps> = ({
   const frameIdRef = useRef<number>(0);
   const lastVideoTimeRef = useRef<number>(-1);
   const lastPredictionTimeRef = useRef<number>(0);
-  
+
   const onStateChangeRef = useRef(onStateChange);
   const onHandMoveRef = useRef(onHandMove);
   const onGrabRef = useRef(onGrab);
@@ -44,14 +44,53 @@ export const HandController: React.FC<HandControllerProps> = ({
     isMirroredRef.current = isMirrored;
   }, [onStateChange, onHandMove, onGrab, isMirrored]);
 
-  const wasPinchingRef = useRef(false);
+  // Mouse control fallback when MediaPipe is not available
+  useEffect(() => {
+    if (landmarker) return; // Use hand tracking if available
 
-  const debugDataRef = useRef({
-    x: 0, y: 0, z: 0,
-    dist: 0,
-    pinching: false,
-    state: AppState.TREE
-  });
+    const handleMouseMove = (e: MouseEvent) => {
+      // Convert mouse position to normalized coordinates (-1 to 1)
+      const rect = document.body.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
+      const y = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
+      const z = 0; // No depth with mouse
+
+      onHandMoveRef.current(x, y, z);
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button === 0) { // Left click
+        onGrabRef.current(true);
+      }
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (e.button === 0) { // Left click
+        onGrabRef.current(false);
+      }
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      // Use wheel for zoom (z-axis)
+      const deltaZ = e.deltaY > 0 ? 0.1 : -0.1;
+      // We can't directly control z, but we can simulate it through existing hand move
+      // For now, just log it
+      console.log('Mouse wheel:', deltaZ);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('wheel', handleWheel);
+    };
+  }, [landmarker]);
 
   // Drag Handlers
   const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
