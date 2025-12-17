@@ -1,0 +1,30 @@
+{
+  "name": "圣诞手势魔法",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node scripts/postbuild.js",
+    "preview": "vite preview",
+    "download-models": "node scripts/download-mediapipe-models.js"
+  },
+  "dependencies": {
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "@react-three/fiber": "^9.4.2",
+    "@mediapipe/tasks-vision": "^0.10.22-rc.20250304",
+    "three": "^0.182.0",
+    "@react-three/postprocessing": "^3.0.4",
+    "@react-three/drei": "^10.7.7",
+    "tailwindcss": "^3.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "autoprefixer": "^10.4.17",
+    "postcss": "^8.4.32",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}
