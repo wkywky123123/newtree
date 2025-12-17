@@ -60,3 +60,5 @@ async function downloadModel() {
 
 downloadModel().catch((error) => {
   console.error('下载过程出错:', error);
+  process.exit(1);
+});
