@@ -117,28 +117,13 @@ function App() {
   useEffect(() => {
     const initMediaPipe = async () => {
       try {
-        // 使用本地打包的 WASM 文件，避免依赖谷歌 CDN
-        // WASM 文件由 @mediapipe/tasks-vision npm 包提供
+        // 使用在中国可访问的CDN源
         const vision = await FilesetResolver.forVisionTasks(
-          // Vite 会自动处理这个导入
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm"
+          "https://fastly.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm"
         );
         
-        // 使用本地模型文件（需要先运行 npm run download-models）
-        // 如果本地文件不存在，会自动回退到 CDN
-        let modelPath = "/mediapipe/hand_landmarker.task";
-        
-        // 检查本地模型文件是否可用
-        try {
-          const response = await fetch(modelPath, { method: 'HEAD' });
-          if (!response.ok) {
-            throw new Error('Local model not found');
-          }
-        } catch {
-          // 本地文件不存在，使用 CDN 源（JsDelivr 在中国可访问）
-          console.warn('使用 CDN 模型源，建议运行: npm run download-models');
-          modelPath = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm/hand_landmarker.task";
-        }
+        // 使用在中国可访问的CDN源 (使用fastly CDN)
+        const modelPath = "https://fastly.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm/hand_landmarker.task";
         
         const lm = await HandLandmarker.createFromOptions(vision, {
           baseOptions: {

@@ -6,9 +6,13 @@
  * 使用方法: node scripts/download-mediapipe-models.js
  */
 
-const https = require('https');
-const fs = require('fs');
-const path = require('path');
+import https from 'https';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const PUBLIC_DIR = path.join(__dirname, '../public/mediapipe');
 
@@ -21,10 +25,10 @@ if (!fs.existsSync(PUBLIC_DIR)) {
 const models = [
   {
     name: 'hand_landmarker.task',
-    // 从 JsDelivr CDN 下载（在中国可访问）
+    // 使用在中国可访问的CDN源
     urls: [
-      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm/hand_landmarker.task',
-      // 备用源
+      'https://fastly.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm/hand_landmarker.task',
+      // 备用Google源
       'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
     ]
   }
